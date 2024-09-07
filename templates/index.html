@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #f4f4f4;
+            --card-background: #ffffff;
+            --text-color: #333333;
+            --danger-color: #e74c3c;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+
+        .sensor-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .alert {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #security-log {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #security-log li {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Smart Home Dashboard</h1>
+        
+        <div class="grid">
+            <div class="card" id="sensors-card">
+                <h2>Sensors</h2>
+                <p>Motion: <span id="motion" class="sensor-value"></span></p>
+                <p>Gas Value: <span id="gas-value" class="sensor-value"></span></p>
+                <p>Gas Leakage: <span id="gas-leakage" class="sensor-value"></span></p>
+                <p>Temperature: <span id="temperature" class="sensor-value"></span>°C</p>
+                <p>Humidity: <span id="humidity" class="sensor-value"></span>%</p>
+                <p>Door Status: <span id="door-status" class="sensor-value"></span></p>
+            </div>
+            
+            <div class="card">
+                <h2>Device Control</h2>
+                <button onclick="toggleDevice('lights')">Toggle Lights</button>
+                <button onclick="toggleDevice('ac')">Toggle AC</button>
+            </div>
+            
+            <div class="card">
+                <h2>Energy Usage</h2>
+                <canvas id="energyChart"></canvas>
+            </div>
+            
+            <div class="card">
+                <h2>Security Log</h2>
+                <ul id="security-log"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateSensorData() {
+            fetch('/get_sensor_data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('motion').textContent = data.motion ? 'DETECTED' : 'Normal';
+                    document.getElementById('gas-value').textContent = data.gas_value;
+                    document.getElementById('gas-leakage').textContent = data.gas_leakage ? 'DETECTED' : 'Normal';
+                    document.getElementById('temperature').textContent = data.temperature;
+                    document.getElementById('humidity').textContent = data.humidity;
+                    document.getElementById('door-status').textContent = data.door_status;
+
+                    const sensorsCard = document.getElementById('sensors-card');
+                    sensorsCard.style.borderColor = data.gas_leakage || data.motion ? 'var(--danger-color)' : 'transparent';
+                    sensorsCard.style.borderWidth = data.gas_leakage || data.motion ? '2px' : '0';
+                    sensorsCard.style.borderStyle = 'solid';
+
+                    if (data.gas_leakage || data.motion) {
+                        showNotification('ALERT: ' + (data.gas_leakage ? 'Gas Leakage ' : '') + (data.motion ? 'Motion ' : '') + 'Detected!');
+                    }
+                });
+        }
+
+        function toggleDevice(device) {
+            fetch(`/toggle_device/${device}`)
+                .then(response => response.json())
+                .then(data => {
+                    showNotification(`${device} is now ${data.status}`);
+                });
+        }
+
+        function updateEnergyUsage() {
+            fetch('/get_energy_usage')
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = document.getElementById('energyChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Daily', 'Weekly', 'Monthly'],
+                            datasets: [{
+                                label: 'Energy Usage (kWh)',
+                                data: [data.daily, data.weekly, data.monthly],
+                                backgroundColor: ['rgba(52, 152, 219, 0.6)', 'rgba(46, 204, 113, 0.6)', 'rgba(155, 89, 182, 0.6)']
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                });
+        }
+
+        function updateSecurityLog() {
+            fetch('/get_security_log')
+                .then(response => response.json())
+                .then(data => {
+                    const logElement = document.getElementById('security-log');
+                    logElement.innerHTML = '';
+                    data.log.forEach(entry => {
+                        const li = document.createElement('li');
+                        li.textContent = entry;
+                        logElement.appendChild(li);
+                    });
+                });
+        }
+
+        function showNotification(message) {
+            // You can replace this with a more sophisticated notification system
+            alert(message);
+        }
+
+        // Update data every 5 seconds
+        setInterval(() => {
+            updateSensorData();
+            updateSecurityLog();
+        }, 5000);
+
+        // Initial updates
+        updateSensorData();
+        updateEnergyUsage();
+        updateSecurityLog();
+    </script>
+</body>
+</html>
